@@ -72,7 +72,7 @@ Errors are thrown as `GrafenoError`, with the HTTP `status` and the API's
 ## Versions and capabilities (15.3)
 
 The client is the published contract of the HTTP API. It has its own
-version (`CLIENT_VERSION`, 0.2.0) and speaks the API versions in
+version (`CLIENT_VERSION`, 0.2.1) and speaks the API versions in
 `API_VERSIONS` (`[1]`). Before using an engine, check it:
 
 ```ts
