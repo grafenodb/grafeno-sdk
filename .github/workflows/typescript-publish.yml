@@ -1,0 +1,47 @@
+# Publishes the TypeScript SDK to npm when a tag `typescript-v<version>` is
+# pushed: the tag must name the version in typescript/package.json, which
+# must have a section in typescript/CHANGELOG.md. The SDK is tested again
+# (typescript.yml) before anything is published. npm trusts this workflow
+# through trusted publishing (OIDC): no token is stored, and the package
+# gets provenance.
+name: TypeScript SDK publish
+
+on:
+  push:
+    tags: ["typescript-v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/typescript.yml
+
+  publish:
+    name: Publish @grafenodb/client to npm
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: The tag names the package's version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          test "$GITHUB_REF_NAME" = "typescript-v$version" \
+            || { echo "tag $GITHUB_REF_NAME, package version $version"; exit 1; }
+          grep -q "^## $version" CHANGELOG.md \
+            || { echo "CHANGELOG.md has no section for $version"; exit 1; }
+      - name: Install and build
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Publish
+        run: npm publish

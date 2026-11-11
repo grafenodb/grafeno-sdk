@@ -1,8 +1,8 @@
 // End-to-end test of a cluster: three `grafeno serve` processes with
 // `[cluster]` settings. The client knows all three; it reads its own
 // writes on any member, a keyed write runs once, and when the member it
-// talks to dies it goes on with the others. Build the binary first
-// (`cargo build -p grafeno-server`) or point GRAFENO_BIN to it.
+// talks to dies it goes on with the others. The engine is found as
+// test/engine.ts says.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
@@ -10,17 +10,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { Grafeno } from "../src/index.ts";
+import { engineBinary } from "./engine.ts";
 
-const binary =
-  process.env.GRAFENO_BIN ??
-  fileURLToPath(
-    new URL(`../../../target/debug/grafeno${process.platform === "win32" ? ".exe" : ""}`, import.meta.url),
-  );
+const binary = engineBinary;
 const token = "cluster-test-token";
 const dir = mkdtempSync(join(tmpdir(), "grafeno-ts-cluster-"));
 const members: { id: number; api: string; process?: ChildProcess }[] = [];

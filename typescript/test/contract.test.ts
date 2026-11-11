@@ -4,22 +4,18 @@
 //
 // GRAFENO_CONTRACT_BINS lists the binaries (separated like PATH: `:` on
 // Linux, `;` on Windows): the engine being built and the previous release.
-// Without it, GRAFENO_BIN or the debug build of this repository.
+// Without it, the engine test/engine.ts finds.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { delimiter } from "node:path";
-import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { API_VERSIONS, type About, Grafeno, GrafenoError, LEGACY_CAPABILITIES } from "../src/index.ts";
+import { engineBinary } from "./engine.ts";
 
-const defaultBinary =
-  process.env.GRAFENO_BIN ??
-  fileURLToPath(
-    new URL(`../../../target/debug/grafeno${process.platform === "win32" ? ".exe" : ""}`, import.meta.url),
-  );
+const defaultBinary = engineBinary;
 const binaries = (process.env.GRAFENO_CONTRACT_BINS ?? defaultBinary)
   .split(delimiter)
   .filter((path) => path !== "");

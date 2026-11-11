@@ -1,18 +1,15 @@
 // Phase 14.1 end to end: accounts and sessions through the client, against
-// the real `grafeno serve`. Build it first (`cargo build -p grafeno-server`)
-// or point GRAFENO_BIN to it.
+// the real `grafeno serve`. The engine is found as test/engine.ts says.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
-import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { Grafeno, GrafenoError, type SessionTokens } from "../src/index.ts";
+import { engineBinary } from "./engine.ts";
 
-const binary =
-  process.env.GRAFENO_BIN ??
-  fileURLToPath(new URL(`../../../target/debug/grafeno${process.platform === "win32" ? ".exe" : ""}`, import.meta.url));
+const binary = engineBinary;
 const token = "accounts-test-token";
 let server: ChildProcess;
 let url: string;

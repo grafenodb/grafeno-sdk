@@ -1,23 +1,18 @@
 // End-to-end test: starts the real `grafeno serve` binary and drives it
-// through the client. Build it first (`cargo build -p grafeno-server`) or
-// point GRAFENO_BIN to it.
+// through the client. The engine is found as test/engine.ts says.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { type Conflict, Grafeno, GrafenoError } from "../src/index.ts";
+import { engineBinary } from "./engine.ts";
 
-const binary =
-  process.env.GRAFENO_BIN ??
-  fileURLToPath(
-    new URL(`../../../target/debug/grafeno${process.platform === "win32" ? ".exe" : ""}`, import.meta.url),
-  );
+const binary = engineBinary;
 const token = "test-token";
 let server: ChildProcess;
 let url: string;

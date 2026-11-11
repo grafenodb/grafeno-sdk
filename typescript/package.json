@@ -1,0 +1,55 @@
+{
+  "name": "@grafenodb/client",
+  "version": "0.2.0",
+  "description": "TypeScript SDK for Grafeno, the graph engine for agent memory and knowledge",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "grafeno",
+    "graph",
+    "graph-database",
+    "knowledge-graph",
+    "agent-memory",
+    "sdk",
+    "client"
+  ],
+  "homepage": "https://github.com/grafenodb/grafeno-sdk/tree/main/typescript#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grafenodb/grafeno-sdk.git",
+    "directory": "typescript"
+  },
+  "bugs": {
+    "url": "https://github.com/grafenodb/grafeno-sdk/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

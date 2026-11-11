@@ -1,0 +1,68 @@
+# The TypeScript SDK (typescript/): built, type-checked and tested against
+# the real engine. The tests run against the latest published engine, and
+# the contract test against every published engine release (each must keep
+# working with this client). Called by typescript-publish.yml before a
+# release. The engine's own CI runs these tests against each engine change.
+name: TypeScript SDK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "typescript/**"
+      - ".github/workflows/typescript.yml"
+  pull_request:
+    paths:
+      - "typescript/**"
+      - ".github/workflows/typescript.yml"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: typescript
+
+jobs:
+  test:
+    name: Build and test against the published engines
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - name: Install the dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Type-check and build
+        run: npm run build
+      - name: Download every published engine release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="$RUNNER_TEMP/engines"
+          bins=""
+          for tag in $(gh release list --repo grafenodb/grafeno --exclude-drafts --exclude-pre-releases \
+                         --json tagName -q '.[].tagName'); do
+            mkdir -p "$dir/$tag"
+            gh release download "$tag" --repo grafenodb/grafeno \
+              --pattern 'grafeno-x86_64-unknown-linux-musl.tar.gz' --dir "$dir/$tag"
+            tar -xzf "$dir/$tag/grafeno-x86_64-unknown-linux-musl.tar.gz" -C "$dir/$tag"
+            "$dir/$tag/grafeno" --version
+            bins="$bins${bins:+:}$dir/$tag/grafeno"
+          done
+          latest="$(gh release view --repo grafenodb/grafeno --json tagName -q .tagName)"
+          echo "GRAFENO_BIN=$dir/$latest/grafeno" >> "$GITHUB_ENV"
+          echo "GRAFENO_CONTRACT_BINS=$bins" >> "$GITHUB_ENV"
+          echo "Tests run against $latest; the contract against: $bins"
+      - name: Test against the real engine
+        run: npm test
+      - name: Run the benchmark script once, without performance thresholds
+        run: GRAFENO_BENCH_ROUNDS=1 node bench/read-many.mjs
+      - name: Pack the package as it would be published
+        run: npm pack --dry-run

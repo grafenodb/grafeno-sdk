@@ -5,10 +5,11 @@ import { once } from 'node:events';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Grafeno } from '../src/index.ts';
+import { engineBinary } from '../test/engine.ts';
 
 const rounds = Number(process.env.GRAFENO_BENCH_ROUNDS ?? 25);
 assert(Number.isInteger(rounds) && rounds >= 1 && rounds <= 1000, 'GRAFENO_BENCH_ROUNDS debe estar entre 1 y 1000');
-const binary = process.env.GRAFENO_BIN ?? fileURLToPath(new URL(`../../../target/debug/grafeno${process.platform === 'win32' ? '.exe' : ''}`, import.meta.url));
+const binary = engineBinary;
 const token = 'benchmark-privado';
 const server = spawn(binary, ['serve', '--memory', '--addr', '127.0.0.1:0', '--token', token], { stdio: ['ignore', 'ignore', 'pipe'] });
 const exited = once(server, 'exit');
