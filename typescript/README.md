@@ -104,7 +104,7 @@ The tests start a real engine (`grafeno serve --memory`): the one in
 `GRAFENO_BIN`, else a debug build of the engine checked out next to this
 repository (`../grafeno`, built with `cargo build -p grafeno-server`),
 else `grafeno` from the PATH (see `test/engine.ts`). Releases are tagged
-`typescript-v<version>`, and the `typescript-publish` workflow publishes
+`typescript-v<version>`, and the `publish` workflow publishes
 them to npm; see the repository's README.
 
 ## Read nodes and edges together
