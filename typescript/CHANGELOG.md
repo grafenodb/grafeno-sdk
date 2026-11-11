@@ -6,6 +6,15 @@ publish workflow refuses a tag whose version has no section. It speaks the
 engine's HTTP API version 1 and works with every engine release from 0.1.0
 (`connect()` and `supports()` tell what each one can do).
 
+## 0.2.1
+
+The first release published by the repository's `publish` workflow
+(through npm's trusted publishing), with npm provenance: it says which
+commit and workflow built it. The API is the same as 0.2.0's.
+
+- `CLIENT_VERSION` is 0.2.1.
+- The README names the `publish` workflow that releases the package.
+
 ## 0.2.0
 
 The first release on npm, as `@grafenodb/client` (it lived inside the
