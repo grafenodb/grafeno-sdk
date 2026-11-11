@@ -1,10 +1,12 @@
-# Publishes the TypeScript SDK to npm when a tag `typescript-v<version>` is
-# pushed: the tag must name the version in typescript/package.json, which
-# must have a section in typescript/CHANGELOG.md. The SDK is tested again
-# (typescript.yml) before anything is published. npm trusts this workflow
-# through trusted publishing (OIDC): no token is stored, and the package
-# gets provenance.
-name: TypeScript SDK publish
+# Publishes an SDK when its release tag is pushed. Registries trust this
+# one workflow file through trusted publishing (OIDC): no token is stored,
+# and packages get provenance. Each SDK has its own job, run only for its
+# own tags:
+#   typescript-v<version>  ->  @grafenodb/client on npm
+# The tag must name the version in the SDK's package, which must have a
+# section in the SDK's CHANGELOG.md, and the SDK is tested again (its own
+# workflow) before anything is published.
+name: Publish
 
 on:
   push:
@@ -15,12 +17,14 @@ permissions:
   id-token: write
 
 jobs:
-  test:
+  typescript-test:
+    if: startsWith(github.ref_name, 'typescript-v')
     uses: ./.github/workflows/typescript.yml
 
-  publish:
+  typescript:
     name: Publish @grafenodb/client to npm
-    needs: test
+    if: startsWith(github.ref_name, 'typescript-v')
+    needs: typescript-test
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:

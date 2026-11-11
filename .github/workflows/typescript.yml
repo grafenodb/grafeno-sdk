@@ -1,8 +1,8 @@
 # The TypeScript SDK (typescript/): built, type-checked and tested against
 # the real engine. The tests run against the latest published engine, and
 # the contract test against every published engine release (each must keep
-# working with this client). Called by typescript-publish.yml before a
-# release. The engine's own CI runs these tests against each engine change.
+# working with this client). Called by publish.yml before a release. The
+# engine's own CI runs these tests against each engine change.
 name: TypeScript SDK
 
 on:
@@ -11,10 +11,12 @@ on:
     paths:
       - "typescript/**"
       - ".github/workflows/typescript.yml"
+      - ".github/workflows/publish.yml"
   pull_request:
     paths:
       - "typescript/**"
       - ".github/workflows/typescript.yml"
+      - ".github/workflows/publish.yml"
   workflow_dispatch:
   workflow_call:
 

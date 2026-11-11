@@ -12,9 +12,11 @@ before using it (`GET /v1/about`).
 
 ## How the SDKs are built and released
 
-- **Separate pipelines.** Each SDK has its workflows in `.github/workflows/`,
-  named after its folder (`typescript.yml`, `typescript-publish.yml`), and
-  they run only when that folder (or the workflow) changes.
+- **Separate pipelines.** Each SDK has its own workflow in
+  `.github/workflows/`, named after its folder (`typescript.yml`), which runs
+  only when that folder (or the workflow) changes. Publishing goes through
+  one workflow, `publish.yml`, the file the registries trust (trusted
+  publishing), with a job per SDK that runs only for that SDK's tags.
 - **Tested against the real engine.** An SDK's tests start `grafeno serve`
   and talk to it. In this repository they run against the engine's
   published releases (downloaded from
