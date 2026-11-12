@@ -397,12 +397,28 @@ export interface SearchHit {
   fragments?: Fragment[];
 }
 
+/** How recall follows facts from its best matches. */
 export interface Expansion {
+  /** Hops to follow from each seed (default 1). */
   depth?: number;
   direction?: Direction;
   filter?: EdgeFilter;
+  /** Share of a seed's score passed on per hop, from 0 to 1 (default 0.5). */
   decay?: number;
+  /** How many of the best direct matches are expanded (default 5). */
   seeds?: number;
+  /**
+   * How much well-connected nodes are damped (default 1, 0 for none):
+   * the share along an edge is divided by
+   * `sqrt((1 + hubs·ln d₁)(1 + hubs·ln d₂))`, d₁ and d₂ being the edges of
+   * its ends. Engines with `recall.hubs`; older ones refuse the field.
+   */
+  hubs?: number;
+  /**
+   * Neighbors followed from each node at most (default 100, 0 for all),
+   * the search's matches first. Engines with `recall.hubs`.
+   */
+  fanout?: number;
 }
 
 export interface RecallInput {

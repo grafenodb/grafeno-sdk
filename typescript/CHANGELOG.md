@@ -6,6 +6,13 @@ publish workflow refuses a tag whose version has no section. It speaks the
 engine's HTTP API version 1 and works with every engine release from 0.1.0
 (`connect()` and `supports()` tell what each one can do).
 
+## Unreleased
+
+- `Expansion` (recall's `expand`) takes `hubs` and `fanout`, for engines
+  with the `recall.hubs` capability: how much well-connected nodes are
+  damped, and how many neighbors are followed from each node. Its other
+  fields are documented with their defaults.
+
 ## 0.2.1
 
 The first release published by the repository's `publish` workflow

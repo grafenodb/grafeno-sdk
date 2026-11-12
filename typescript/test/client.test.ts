@@ -348,6 +348,35 @@ test("memory: names, importance, duplicates, merge and summaries", async () => {
   assert.equal(await memory.archive([id]), 1);
 });
 
+test("recall damps a node linked to everything", async (t) => {
+  const grafeno = new Grafeno({ url, token });
+  await grafeno.connect();
+  if (!grafeno.supports("recall.hubs")) {
+    t.skip("the engine has no recall.hubs");
+    return;
+  }
+  const hubs = grafeno.namespace("hubs");
+  const { id: user } = await hubs.createNode({ labels: ["Person"], props: { name: "user" } });
+  const { id: note } = await hubs.createNode({ labels: ["Note"], text: "the telescope arrived" });
+  await hubs.createEdge({ from: user, to: note, label: "wrote" });
+  for (let i = 0; i < 40; i++) {
+    const { id } = await hubs.createNode({ labels: ["Note"], text: `note ${i}` });
+    await hubs.createEdge({ from: user, to: id, label: "wrote" });
+  }
+  const share = async (expand: { hubs: number; fanout?: number }) => {
+    const found = await hubs.recall({ text: "telescope", ranking: false, expand });
+    assert.equal(found[0].node.id, note);
+    const hub = found.find((r) => r.node.id === user)!;
+    assert.ok(hub.signals.some((signal) => signal.kind === "graph"));
+    return hub.score / found[0].score;
+  };
+  const undamped = await share({ hubs: 0, fanout: 0 });
+  const damped = await share({ hubs: 1 });
+  assert.ok(Math.abs(undamped - 0.5) < 1e-6, `undamped ${undamped}`);
+  // 41 edges: 0.5 / sqrt(1 + ln 41), about 0.23.
+  assert.ok(Math.abs(damped - 0.5 / Math.sqrt(1 + Math.log(41))) < 1e-4, `damped ${damped}`);
+});
+
 test("errors carry status and code", async () => {
   const vault = new Grafeno({ url, token }).namespace("user-1");
   await assert.rejects(vault.getNode("0190f5c2-7a3e-7cde-8f01-0000000000ff"), { status: 404, code: "not_found" });
