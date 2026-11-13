@@ -412,3 +412,25 @@ test("vecindarios por lotes equivalen a las expansiones individuales", async () 
   }
   await assert.rejects(lab.neighborhoods(Array(9).fill(a.id)), (error: unknown) => error instanceof GrafenoError && error.status === 400);
 });
+
+test("a namespace out and back in as GraphML and as CSV", async () => {
+  const client = new Grafeno({ url, token });
+  await client.namespace("swap-from").query("CREATE (:City {name: 'Lima', size: 10})-[:Road {km: 5}]->(:City {name: 'Cusco', size: 4})");
+  const graphml = await client.exportAs("swap-from", "graphml");
+  assert.match(graphml, /<graphml/);
+  const fromGraphml = await client.importAs("swap-graphml", "graphml", graphml);
+  assert.deepEqual([fromGraphml.nodes, fromGraphml.edges, fromGraphml.failed], [2, 1, 0]);
+
+  const nodes = await client.exportAs("swap-from", "nodes.csv");
+  const edges = await client.exportAs("swap-from", "edges.csv");
+  assert.match(nodes, /:LABEL/);
+  const inNodes = await client.importAs("swap-csv", "nodes.csv", nodes);
+  const inEdges = await client.importAs("swap-csv", "edges.csv", edges);
+  assert.deepEqual([inNodes.nodes, inEdges.edges, inEdges.failed], [2, 1, 0]);
+  const road = await client.namespace("swap-csv").query("MATCH (a:City)-[r:Road]->(b:City) RETURN a.name, r.km, b.name");
+  assert.deepEqual(road.rows, [["Lima", 5, "Cusco"]]);
+
+  const broken = await client.importAs("swap-bad", "edges.csv", ":START_ID,:END_ID,:TYPE\nnowhere,nobody,Road\n");
+  assert.equal(broken.failed, 1);
+  assert.ok((broken.errors ?? []).length === 1);
+});

@@ -572,6 +572,19 @@ export interface DumpStats {
   edges: number;
 }
 
+/** A namespace as another tool's file: GraphML, or CSV of nodes or of facts. */
+export type InterchangeFormat = "graphml" | "nodes.csv" | "edges.csv";
+
+/** What an import of GraphML or CSV did. */
+export interface InterchangeStats {
+  nodes: number;
+  edges: number;
+  /** Rows or elements that could not be imported. */
+  failed: number;
+  /** Why, for the first hundred; absent when none failed. */
+  errors?: string[];
+}
+
 /** A graph algorithm the server can run (`GET /v1/algorithms`). */
 export interface AlgorithmInfo {
   name: string;
@@ -1329,6 +1342,28 @@ export class Grafeno {
     const path = options.bulk ? "/v1/import?bulk=true" : "/v1/import";
     const response = await this.#send("POST", path, dump, "application/x-ndjson");
     return (await response.json()) as DumpStats;
+  }
+
+  /**
+   * A namespace as GraphML, or as CSV of its nodes or its facts, with typed
+   * headers (`name:int`, `:LABEL`). Retracted facts are left out.
+   */
+  async exportAs(namespace: string, format: InterchangeFormat): Promise<string> {
+    const ns = encodeURIComponent(namespace);
+    const path = format === "graphml" ? `/v1/${ns}/export.graphml` : `/v1/${ns}/export/${format}`;
+    return this.#send("GET", path).then((response) => response.text());
+  }
+
+  /**
+   * Imports GraphML, or CSV of nodes or facts, into a namespace (admin).
+   * Grafeno ids update their records; other ids map to new nodes. Import
+   * nodes before the facts between them.
+   */
+  async importAs(namespace: string, format: InterchangeFormat, text: string): Promise<InterchangeStats> {
+    const ns = encodeURIComponent(namespace);
+    const type = format === "graphml" ? "application/xml" : "text/csv";
+    const response = await this.#send("POST", `/v1/${ns}/import/${format}`, text, type);
+    return (await response.json()) as InterchangeStats;
   }
 
   /** Sends a request and parses the JSON response. */

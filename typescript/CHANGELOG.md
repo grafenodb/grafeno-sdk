@@ -8,6 +8,9 @@ engine's HTTP API version 1 and works with every engine release from 0.1.0
 
 ## Unreleased
 
+- `exportAs` and `importAs`: a namespace as GraphML, or as CSV of its nodes
+  or its facts, and back (`InterchangeFormat`, `InterchangeStats`), for
+  engines with the `import.graphml` and `import.csv` capabilities.
 - `Expansion` (recall's `expand`) takes `hubs` and `fanout`, for engines
   with the `recall.hubs` capability: how much well-connected nodes are
   damped, and how many neighbors are followed from each node. Its other
