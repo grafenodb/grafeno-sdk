@@ -434,3 +434,30 @@ test("a namespace out and back in as GraphML and as CSV", async () => {
   assert.equal(broken.failed, 1);
   assert.ok((broken.errors ?? []).length === 1);
 });
+
+test("memory tools over HTTP: a palace mapped, walked and reflected on", async () => {
+  const client = new Grafeno({ url, token });
+  if (!(await client.connect()).capabilities.includes("tools")) return;
+  const ns = client.namespace("palace-tools");
+  const names = (await ns.tools()).map((tool) => tool.name);
+  for (const name of ["palace_map", "palace_walk", "palace_reflect", "palace_route", "timeline"]) {
+    assert.ok(names.includes(name), name);
+  }
+  await ns.tool("palace_create", { name: "Work" });
+  const room = await ns.tool<{ id: string }>("palace_create_room", { palace: "Work", name: "Billing", topic: "invoices" });
+  const memory = await ns.tool<{ id: string }>("remember", { text: "Invoices go out on the first day" });
+  await ns.tool("palace_anchor", { memory: memory.id, room: room.id });
+  const map = await ns.tool<{ palaces: { name: string; rooms: { name: string; memories: number }[] }[] }>("palace_map");
+  assert.equal(map.palaces[0].rooms[0].memories, 1);
+  const walk = await ns.tool<{ memories: { id: string; found_by: string }[] }>("palace_walk", { topic: "invoices" });
+  assert.equal(walk.memories[0].id, memory.id);
+  assert.ok(walk.memories[0].found_by);
+  const reflection = await ns.tool<{ nothing: boolean }>("palace_reflect", { room: room.id });
+  assert.equal(reflection.nothing, false);
+  // A refusal comes back as the tool's own words.
+  const refused = await ns.callTool("palace_walk", {});
+  assert.equal(refused.isError, true);
+  await assert.rejects(ns.tool("palace_walk", {}), (error: GrafenoError) => error.code === "tool_error");
+  // Contradictions are read, and none were recorded here.
+  assert.deepEqual(await ns.contradictions({ limit: 5 }), []);
+});

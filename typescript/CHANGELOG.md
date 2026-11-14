@@ -8,6 +8,11 @@ engine's HTTP API version 1 and works with every engine release from 0.1.0
 
 ## Unreleased
 
+- `tools()`, `tool()` and `callTool()`: the memory tools over HTTP
+  (palaces, reflection, timelines, routes…), for engines with the `tools`
+  capability; a refused call throws a `GrafenoError` with code
+  `tool_error`. `contradictions()` and `compact()` for the routes of the
+  same names.
 - `exportAs` and `importAs`: a namespace as GraphML, or as CSV of its nodes
   or its facts, and back (`InterchangeFormat`, `InterchangeStats`), for
   engines with the `import.graphml` and `import.csv` capabilities.

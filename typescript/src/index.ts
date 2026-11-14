@@ -585,6 +585,49 @@ export interface InterchangeStats {
   errors?: string[];
 }
 
+/** A memory tool the caller may run in a namespace (`GET /v1/{ns}/tools`). */
+export interface ToolInfo {
+  name: string;
+  title?: string;
+  description: string;
+  /** The JSON Schema of its arguments. */
+  inputSchema: Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+}
+
+/** What a memory tool answered, as MCP gives it. */
+export interface ToolResult<T = unknown> {
+  content: { type: string; text: string }[];
+  /** The answer as data, when the tool gives one. */
+  structuredContent?: T;
+  /** The tool refused or failed; `content` says why. */
+  isError: boolean;
+}
+
+/** A fact that contradicted another under a constraint, and what was done. */
+export interface ConstraintEvent {
+  constraint: string;
+  /** `invalidated`, `shortened`, `replaced` or `flagged`. */
+  action: string;
+  new_edge: Id;
+  old_edge: Id;
+  /** For an invalidation: the new version of the old fact. */
+  replacement?: Id | null;
+  /** Where the fact that changed now ends, in microseconds since the epoch. */
+  at?: number | null;
+  /** When it was recorded, in microseconds since the epoch. */
+  recorded_at: number;
+  by?: string | null;
+}
+
+/** What compacting a vector graph did. */
+export interface CompactReport {
+  vectors: number;
+  dangling_before: number;
+  unreachable_before: number;
+  unreachable_after: number;
+}
+
 /** A graph algorithm the server can run (`GET /v1/algorithms`). */
 export interface AlgorithmInfo {
   name: string;
@@ -1571,6 +1614,48 @@ export class Namespace {
 
   stats(): Promise<NamespaceStats> {
     return this.#call("GET", "/stats");
+  }
+
+  /** Facts that contradicted earlier ones under a constraint, newest first. */
+  contradictions(options: { limit?: number } = {}): Promise<ConstraintEvent[]> {
+    const query = options.limit === undefined ? "" : `?limit=${options.limit}`;
+    return this.#call("GET", `/contradictions${query}`);
+  }
+
+  /**
+   * Rebuilds a vector graph worn by removals (admin): a vector index, or the
+   * namespace's own vectors without one.
+   */
+  compact(options: { index?: string } = {}): Promise<CompactReport> {
+    const query = options.index === undefined ? "" : `?index=${encodeURIComponent(options.index)}`;
+    return this.#call("POST", `/compact${query}`);
+  }
+
+  // Memory tools (the `tools` capability)
+
+  /** The memory tools the caller may run here: those that write only with a right to write. */
+  async tools(): Promise<ToolInfo[]> {
+    return (await this.#call<{ tools: ToolInfo[] }>("GET", "/tools")).tools;
+  }
+
+  /**
+   * Runs a memory tool (`palace_map`, `palace_walk`, `palace_reflect`,
+   * `timeline`, `recall`…) with its arguments, as the caller, and returns
+   * what it answered, a refusal included (`isError`).
+   */
+  callTool<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<ToolResult<T>> {
+    return this.#call("POST", `/tools/${encodeURIComponent(name)}`, args);
+  }
+
+  /**
+   * Runs a memory tool and returns its answer as data; a refusal throws a
+   * `GrafenoError` with code `tool_error` and the tool's own words.
+   */
+  async tool<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+    const result = await this.callTool<T>(name, args);
+    const text = result.content.map((part) => part.text).join("\n");
+    if (result.isError) throw new GrafenoError(400, "tool_error", text, { tool: name });
+    return (result.structuredContent ?? (text as unknown)) as T;
   }
 
   /** Checks that indexes and counters agree with the records. */
