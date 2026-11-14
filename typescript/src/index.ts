@@ -13,7 +13,7 @@
  */
 
 /** This client's version (it has its own, apart from the engine's). */
-export const CLIENT_VERSION = "0.2.1";
+export const CLIENT_VERSION = "0.2.2";
 
 /** The versions of the HTTP API this client speaks. */
 export const API_VERSIONS: readonly number[] = [1];

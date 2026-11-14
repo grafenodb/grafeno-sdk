@@ -1,6 +1,6 @@
 {
   "name": "@grafenodb/client",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "TypeScript SDK for Grafeno, the graph engine for agent memory and knowledge",
   "license": "MIT OR Apache-2.0",
   "type": "module",

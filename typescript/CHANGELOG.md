@@ -6,8 +6,12 @@ publish workflow refuses a tag whose version has no section. It speaks the
 engine's HTTP API version 1 and works with every engine release from 0.1.0
 (`connect()` and `supports()` tell what each one can do).
 
-## Unreleased
+## 0.2.2
 
+What the engine's memory and interchange routes offer, from the client.
+Nothing changes for code written for 0.2.1.
+
+- `CLIENT_VERSION` is 0.2.2.
 - `tools()`, `tool()` and `callTool()`: the memory tools over HTTP
   (palaces, reflection, timelines, routes…), for engines with the `tools`
   capability; a refused call throws a `GrafenoError` with code
