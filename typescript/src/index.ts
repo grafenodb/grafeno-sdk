@@ -646,13 +646,18 @@ export interface DumpStats {
   hyperedges?: number;
 }
 
-/** A namespace as another tool's file: GraphML, or CSV of nodes or of facts. */
-export type InterchangeFormat = "graphml" | "nodes.csv" | "edges.csv";
+/**
+ * A namespace as another tool's file: GraphML, or CSV of nodes, of facts or
+ * (engines with the `hyperedges` capability, from 0.5) of hyperedges.
+ */
+export type InterchangeFormat = "graphml" | "nodes.csv" | "edges.csv" | "hyperedges.csv";
 
 /** What an import of GraphML or CSV did. */
 export interface InterchangeStats {
   nodes: number;
   edges: number;
+  /** Absent when none were written. */
+  hyperedges?: number;
   /** Rows or elements that could not be imported. */
   failed: number;
   /** Why, for the first hundred; absent when none failed. */

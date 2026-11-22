@@ -548,6 +548,14 @@ test("hyperedges: routes, batches and deleting a participant", async (t) => {
   await team.deleteNode(task, { hyperedges: "detach" });
   assert.equal((await team.getHyperedge(id)).participants.length, 2);
 
+  // Out and back in as CSV, with their participants.
+  const csv = await grafeno.exportAs("hyper", "hyperedges.csv");
+  assert.match(csv, /^id:ID,:TYPE,:PARTICIPANTS,/);
+  await team.deleteHyperedge(id);
+  const imported = await grafeno.importAs("hyper", "hyperedges.csv", csv);
+  assert.equal(imported.hyperedges, 1);
+  assert.equal((await team.getHyperedge(id)).props.status, "approved");
+
   // GQ sees them, and counts what it writes.
   const result = await team.query(
     "MATCH HYPEREDGE h:decision [(a) AS proposer] RETURN a.name",

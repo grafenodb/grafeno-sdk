@@ -32,6 +32,8 @@ them leave them out.
   `RebuildReport.hyperedges` and `dropped_hyperedges`.
 - `ContextItem.superseded_by`: what replaces a memory now, on engines that
   mark superseded memories in contexts.
+- `exportAs` and `importAs` take `hyperedges.csv`, and
+  `InterchangeStats.hyperedges` counts what an import wrote.
 
 ## 0.2.2
 
