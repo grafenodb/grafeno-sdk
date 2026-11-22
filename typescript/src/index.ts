@@ -13,7 +13,7 @@
  */
 
 /** This client's version (it has its own, apart from the engine's). */
-export const CLIENT_VERSION = "0.2.2";
+export const CLIENT_VERSION = "0.3.0";
 
 /** The versions of the HTTP API this client speaks. */
 export const API_VERSIONS: readonly number[] = [1];
@@ -108,6 +108,66 @@ export interface Edge {
   /** The API key (agent) that recorded it, when known. */
   recorded_by?: string;
 }
+
+/** A node taking part in a hyperedge, in the role it plays there. */
+export interface Participant {
+  node: Id;
+  role?: string;
+}
+
+/**
+ * A fact relating two or more nodes at once, each in a role (engines with
+ * the `hyperedges` capability). Participants come sorted by node, then role.
+ */
+export interface HyperEdge {
+  id: Id;
+  label: string;
+  participants: Participant[];
+  props: Props;
+  sources: Id[];
+  valid_from: number | null;
+  valid_to: number | null;
+  recorded_at: number;
+  expired_at: number | null;
+  /** The API key (agent) that recorded it, when known. */
+  recorded_by?: string;
+}
+
+/** A participant to write: a node id, or in a batch a `$name` given earlier. */
+export interface ParticipantInput {
+  node: string;
+  role?: string;
+}
+
+/**
+ * A hyperedge to create: at least two distinct nodes, each (node, role)
+ * pair once, 256 participants at most by default.
+ */
+export interface HyperEdgeInput {
+  label: string;
+  participants: ParticipantInput[];
+  props?: Props;
+  sources?: Id[];
+  valid_from?: TimeInput;
+  valid_to?: TimeInput;
+}
+
+/** Properties merged, then removed, then the participants replaced when given. */
+export interface HyperEdgePatch {
+  props?: Props;
+  remove_props?: string[];
+  participants?: ParticipantInput[];
+}
+
+/** Which hyperedges a read returns: labels (any of them) and times. */
+export interface HyperEdgeFilter {
+  labels?: string[];
+  validAt?: TimeInput;
+  knownAt?: TimeInput;
+}
+
+/** What deleting a node does with the hyperedges it takes part in. */
+export type OnHyperEdges = "restrict" | "cascade" | "detach";
 
 export type Role = "read" | "write" | "admin";
 
@@ -480,6 +540,8 @@ export interface ContextItem {
   score: number;
   sources: Id[];
   truncated: boolean;
+  /** What replaces it now (`supersedes`); its heading says so (engines from 0.5). */
+  superseded_by?: Id[];
 }
 
 export interface ContextFact {
@@ -502,12 +564,17 @@ export type BatchOp =
   | { op: "create_node"; ref?: string; node: NodeInput }
   | { op: "upsert_node"; ref?: string; node: NodeInput & { id: Id } }
   | { op: "update_node"; id: string; patch: NodePatch }
-  | { op: "delete_node"; id: string }
+  | { op: "delete_node"; id: string; hyperedges?: OnHyperEdges }
   | { op: "create_edge"; edge: EdgeInput }
   | { op: "delete_edge"; id: Id }
   | { op: "delete_edges_from"; from: string; label?: string }
   | { op: "invalidate_edge"; id: Id; at: TimeInput }
-  | { op: "retract_edge"; id: Id };
+  | { op: "retract_edge"; id: Id }
+  | { op: "create_hyperedge"; ref?: string; hyperedge: HyperEdgeInput }
+  | { op: "update_hyperedge"; id: string; patch: HyperEdgePatch }
+  | { op: "delete_hyperedge"; id: string }
+  | { op: "invalidate_hyperedge"; id: string; at: TimeInput }
+  | { op: "retract_hyperedge"; id: string };
 
 /** A page of a listing; pass `next` as `after` to get the following one. */
 export interface Page<T> {
@@ -551,6 +618,8 @@ export interface CheckReport {
   texts: number;
   vectors: number;
   dangling_links: number;
+  /** Absent when there are none. */
+  hyperedges?: number;
   /** Empty when the namespace is consistent. */
   problems: string[];
 }
@@ -564,12 +633,17 @@ export interface RebuildReport {
   dropped_edges: number;
   dropped_texts: number;
   dropped_vectors: number;
+  /** Absent when there are none. */
+  hyperedges?: number;
+  dropped_hyperedges?: number;
 }
 
 export interface DumpStats {
   namespaces: number;
   nodes: number;
   edges: number;
+  /** Absent when there were none. */
+  hyperedges?: number;
 }
 
 /** A namespace as another tool's file: GraphML, or CSV of nodes or of facts. */
@@ -667,6 +741,10 @@ export interface WriteStats {
   edges_created: number;
   edges_deleted: number;
   edges_retracted: number;
+  /** Absent when 0. */
+  hyperedges_created?: number;
+  hyperedges_deleted?: number;
+  hyperedges_retracted?: number;
   properties_set: number;
   labels_added: number;
   labels_removed: number;
@@ -702,8 +780,10 @@ export interface QueryResult {
 
 export interface BatchResult {
   results: Record<string, unknown>[];
-  /** The ids given to each `$name`. */
+  /** The node ids given to each `$name`. */
   refs: Record<string, Id>;
+  /** The hyperedge ids given to each `$name`; absent when none was. */
+  hyperedge_refs?: Record<string, Id>;
 }
 
 export interface Duplicate {
@@ -744,6 +824,10 @@ export interface MergeReport {
   merged: Id;
   edges_moved: number;
   edges_dropped: number;
+  /** Hyperedges that now name the kept node; absent when 0. */
+  hyperedges_moved?: number;
+  /** Hyperedges left with one node, deleted; absent when 0. */
+  hyperedges_dropped?: number;
   /** Conflicts merged over with `force`. */
   conflicts: Conflict[];
 }
@@ -1672,9 +1756,14 @@ export class Namespace {
     return this.#call("PATCH", `/nodes/${encodeURIComponent(id)}`, patch);
   }
 
-  /** Deletes the node, its edges, text and embedding. */
-  async deleteNode(id: Id): Promise<void> {
-    await this.#call("DELETE", `/nodes/${encodeURIComponent(id)}`);
+  /**
+   * Deletes the node, its edges, text and embedding. A node in a hyperedge
+   * is refused (409) unless `hyperedges` says `cascade` (delete them) or
+   * `detach` (take the node out).
+   */
+  async deleteNode(id: Id, options: { hyperedges?: OnHyperEdges } = {}): Promise<void> {
+    const query = options.hyperedges ? `?hyperedges=${options.hyperedges}` : "";
+    await this.#call("DELETE", `/nodes/${encodeURIComponent(id)}${query}`);
   }
 
   neighbors(
@@ -1712,6 +1801,64 @@ export class Namespace {
   /** The fact was a mistake; it stays visible to `known_at` queries. */
   retractEdge(id: Id): Promise<Edge> {
     return this.#call("POST", `/edges/${encodeURIComponent(id)}/retract`);
+  }
+
+  // Hyperedges (engines with the `hyperedges` capability)
+
+  createHyperedge(input: HyperEdgeInput): Promise<{ id: Id }> {
+    return this.#call("POST", "/hyperedges", input);
+  }
+
+  /** A page of hyperedges (retracted ones included), only those with `label` if given. */
+  listHyperedges(options: ListOptions = {}): Promise<Page<HyperEdge>> {
+    return this.#call("GET", `/hyperedges${listQuery(options)}`);
+  }
+
+  getHyperedge(id: Id): Promise<HyperEdge> {
+    return this.#call("GET", `/hyperedges/${encodeURIComponent(id)}`);
+  }
+
+  patchHyperedge(id: Id, patch: HyperEdgePatch): Promise<HyperEdge> {
+    return this.#call("PATCH", `/hyperedges/${encodeURIComponent(id)}`, patch);
+  }
+
+  async deleteHyperedge(id: Id): Promise<void> {
+    await this.#call("DELETE", `/hyperedges/${encodeURIComponent(id)}`);
+  }
+
+  /** The fact stopped being true at `at`; its history is kept. */
+  invalidateHyperedge(id: Id, at: TimeInput): Promise<HyperEdge> {
+    return this.#call("POST", `/hyperedges/${encodeURIComponent(id)}/invalidate`, { at });
+  }
+
+  /** The fact was a mistake; it stays visible to `known_at` reads. */
+  retractHyperedge(id: Id): Promise<HyperEdge> {
+    return this.#call("POST", `/hyperedges/${encodeURIComponent(id)}/retract`);
+  }
+
+  /**
+   * The hyperedges every one of `nodes` takes part in (256 at most); with
+   * `exact`, those whose nodes are exactly these. Retracted ones are left
+   * out unless `knownAt` reaches back before the retraction.
+   */
+  findHyperedges(nodes: Id[], options: HyperEdgeFilter & { exact?: boolean } = {}): Promise<HyperEdge[]> {
+    return this.#call("POST", "/hyperedges/find", {
+      nodes,
+      exact: options.exact ?? false,
+      label: options.labels?.length ? options.labels.join(",") : undefined,
+      valid_at: options.validAt === undefined ? undefined : String(options.validAt),
+      known_at: options.knownAt === undefined ? undefined : String(options.knownAt),
+    });
+  }
+
+  /** The hyperedges a node takes part in. */
+  nodeHyperedges(id: Id, options: HyperEdgeFilter = {}): Promise<HyperEdge[]> {
+    const params = new URLSearchParams();
+    if (options.labels?.length) params.set("label", options.labels.join(","));
+    if (options.validAt !== undefined) params.set("valid_at", String(options.validAt));
+    if (options.knownAt !== undefined) params.set("known_at", String(options.knownAt));
+    const query = params.size ? `?${params}` : "";
+    return this.#call("GET", `/nodes/${encodeURIComponent(id)}/hyperedges${query}`);
   }
 
   // Traversals

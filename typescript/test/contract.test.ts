@@ -91,6 +91,17 @@ for (const binary of binaries) {
         await session.signIn("reader", "a-long-passw0rd!");
         assert.equal((await session.namespace("contract").getNode(a)).id, a);
       }
+      if (grafeno.supports("hyperedges")) {
+        const { id } = await vault.createHyperedge({
+          label: "collaboration",
+          participants: [{ node: a, role: "author" }, { node: b, role: "subject" }],
+        });
+        assert.deepEqual((await vault.findHyperedges([a, b], { exact: true })).map((h) => h.id), [id]);
+        const { hyperedge_refs } = await vault.batch([
+          { op: "create_hyperedge", ref: "$h", hyperedge: { label: "x", participants: [{ node: a }, { node: b }] } },
+        ]);
+        assert.ok(hyperedge_refs?.$h);
+      }
       if (grafeno.supports("settings")) {
         const settings = await grafeno.settings();
         assert.equal(settings.token, true);

@@ -72,7 +72,7 @@ Errors are thrown as `GrafenoError`, with the HTTP `status` and the API's
 ## Versions and capabilities (15.3)
 
 The client is the published contract of the HTTP API. It has its own
-version (`CLIENT_VERSION`, 0.2.2) and speaks the API versions in
+version (`CLIENT_VERSION`, 0.3.0) and speaks the API versions in
 `API_VERSIONS` (`[1]`). Before using an engine, check it:
 
 ```ts
@@ -158,3 +158,32 @@ Up to eight roots return separate depth-one subgraphs in their original order,
 using one snapshot. A missing root fails the batch, matching `subgraph`.
 Studio uses this operation for graph expansion. See [English](https://github.com/grafenodb/grafeno/blob/main/docs/graph-expansion.md)
 or [Español](https://github.com/grafenodb/grafeno/blob/main/docs/expansion-grafo.md) for compatibility and measurements.
+
+## Hyperedges
+
+Facts that relate two or more nodes at once, each in a role, for engines
+with the `hyperedges` capability (0.5 and later):
+
+```ts
+const { refs, hyperedge_refs } = await team.batch([
+  { op: "create_node", ref: "$ana", node: { labels: ["Agent"], props: { name: "Ana" } } },
+  { op: "create_node", ref: "$task", node: { labels: ["Task"], props: { name: "T-1" } } },
+  { op: "create_hyperedge", ref: "$decision", hyperedge: {
+      label: "decision",
+      participants: [{ node: "$ana", role: "proposer" }, { node: "$task", role: "subject" }],
+      props: { status: "approved" },
+  } },
+]);
+const decision = await team.getHyperedge(hyperedge_refs!.$decision);
+const shared = await team.findHyperedges([refs.$ana, refs.$task]);           // with both
+const exact = await team.findHyperedges([refs.$ana, refs.$task], { exact: true }); // only them
+const ofAna = await team.nodeHyperedges(refs.$ana, { labels: ["decision"] });
+await team.deleteNode(refs.$task, { hyperedges: "detach" }); // or "cascade"; refused (409) by default
+```
+
+`createHyperedge`, `listHyperedges`, `patchHyperedge` (properties and
+participants), `invalidateHyperedge`, `retractHyperedge` and
+`deleteHyperedge` mirror the edge methods. A batch's hyperedge names come
+back in `hyperedge_refs`; GQ reads and writes them with `MATCH HYPEREDGE`,
+`CREATE HYPEREDGE` and `MERGE HYPEREDGE`.
+

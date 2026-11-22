@@ -461,3 +461,122 @@ test("memory tools over HTTP: a palace mapped, walked and reflected on", async (
   // Contradictions are read, and none were recorded here.
   assert.deepEqual(await ns.contradictions({ limit: 5 }), []);
 });
+
+test("hyperedges: routes, batches and deleting a participant", async (t) => {
+  const grafeno = new Grafeno({ url, token });
+  await grafeno.connect();
+  if (!grafeno.supports("hyperedges")) {
+    t.skip("the engine has no hyperedges");
+    return;
+  }
+  const team = grafeno.namespace("hyper");
+  // Nodes and a hyperedge among them in one batch, by their names.
+  const made = await team.batch([
+    { op: "create_node", ref: "$ana", node: { labels: ["Agent"], props: { name: "Ana" } } },
+    { op: "create_node", ref: "$bo", node: { labels: ["Agent"], props: { name: "Bo" } } },
+    { op: "create_node", ref: "$task", node: { labels: ["Task"], props: { name: "T-1" } } },
+    {
+      op: "create_hyperedge",
+      ref: "$decision",
+      hyperedge: {
+        label: "decision",
+        participants: [
+          { node: "$ana", role: "proposer" },
+          { node: "$bo", role: "implementer" },
+          { node: "$task", role: "subject" },
+        ],
+        props: { status: "proposed" },
+      },
+    },
+    { op: "update_hyperedge", id: "$decision", patch: { props: { status: "approved" } } },
+  ]);
+  const id = made.hyperedge_refs!.$decision;
+  const { $ana: ana, $bo: bo, $task: task } = made.refs;
+
+  const decision = await team.getHyperedge(id);
+  assert.equal(decision.label, "decision");
+  assert.equal(decision.props.status, "approved");
+  assert.deepEqual(
+    decision.participants.map((p) => p.role).sort(),
+    ["implementer", "proposer", "subject"],
+  );
+  // A batch without hyperedges has no hyperedge_refs.
+  const plain = await team.batch([{ op: "create_node", node: { labels: ["Note"] } }]);
+  assert.equal(plain.hyperedge_refs, undefined);
+
+  // Reads: by node, by participants (all of them, or exactly them), pages.
+  assert.deepEqual((await team.nodeHyperedges(ana)).map((h) => h.id), [id]);
+  assert.deepEqual((await team.nodeHyperedges(ana, { labels: ["other"] })).length, 0);
+  assert.deepEqual((await team.findHyperedges([ana, bo])).map((h) => h.id), [id]);
+  assert.equal((await team.findHyperedges([ana, bo], { exact: true })).length, 0);
+  assert.equal((await team.findHyperedges([ana, bo, task], { exact: true })).length, 1);
+  const page = await team.listHyperedges({ label: "decision" });
+  assert.deepEqual(page.items.map((h) => h.id), [id]);
+
+  // A route of its own creates one; patching replaces its participants.
+  const { id: pair } = await team.createHyperedge({
+    label: "pair",
+    participants: [{ node: ana }, { node: bo }],
+    valid_from: "2026-01-01",
+  });
+  const patched = await team.patchHyperedge(pair, {
+    participants: [{ node: ana }, { node: task, role: "subject" }],
+    props: { note: "moved" },
+  });
+  assert.ok(patched.participants.some((p) => p.node === task && p.role === "subject"));
+
+  // Invalidated, it no longer holds then; retracted, it is gone from reads.
+  const invalidated = await team.invalidateHyperedge(pair, "2026-06-01T00:00:00Z");
+  assert.equal(invalidated.valid_to, Date.UTC(2026, 5, 1) * 1000);
+  assert.equal((await team.nodeHyperedges(task, { validAt: "2026-07-01", labels: ["pair"] })).length, 0);
+  assert.equal((await team.nodeHyperedges(task, { validAt: "2026-03-01", labels: ["pair"] })).length, 1);
+  const retracted = await team.retractHyperedge(pair);
+  assert.ok(retracted.expired_at !== null);
+  await team.deleteHyperedge(pair);
+  await assert.rejects(team.getHyperedge(pair), (error: unknown) => {
+    assert.ok(error instanceof GrafenoError);
+    assert.equal(error.status, 404);
+    return true;
+  });
+
+  // A node in a hyperedge is not deleted unless the call says how.
+  await assert.rejects(team.deleteNode(task), (error: unknown) => {
+    assert.ok(error instanceof GrafenoError);
+    assert.equal(error.status, 409);
+    return true;
+  });
+  await team.deleteNode(task, { hyperedges: "detach" });
+  assert.equal((await team.getHyperedge(id)).participants.length, 2);
+
+  // GQ sees them, and counts what it writes.
+  const result = await team.query(
+    "MATCH HYPEREDGE h:decision [(a) AS proposer] RETURN a.name",
+  );
+  assert.deepEqual(result.rows, [["Ana"]]);
+  const write = await team.query(
+    "MATCH (a {name: 'Ana'}), (b {name: 'Bo'}) MERGE HYPEREDGE h:meeting {key: 'M-1'} [(a), (b)] RETURN h.key",
+  );
+  assert.equal(write.stats.hyperedges_created, 1);
+});
+
+test("a superseded memory says so in a context", async (t) => {
+  const grafeno = new Grafeno({ url, token });
+  await grafeno.connect();
+  if (!grafeno.supports("hyperedges")) {
+    // Engines that mark superseded memories are those that have hyperedges (0.5).
+    t.skip("the engine does not mark superseded memories");
+    return;
+  }
+  const memory = grafeno.namespace("superseded");
+  const { refs } = await memory.batch([
+    { op: "create_node", ref: "$old", node: { labels: ["Decision"], props: { name: "Monthly invoices" }, text: "Invoices go out monthly" } },
+    { op: "create_node", ref: "$new", node: { labels: ["Decision"], props: { name: "Weekly invoices" }, text: "Invoices go out weekly" } },
+    { op: "create_edge", edge: { from: "$new", label: "supersedes", to: "$old" } },
+  ]);
+  const context = await memory.context({ text: "invoices", budget: 400 });
+  const old = context.items.find((item) => item.node === refs.$old)!;
+  assert.deepEqual(old.superseded_by, [refs.$new]);
+  assert.match(context.rendered, /superseded by Weekly invoices/);
+  const current = context.items.find((item) => item.node === refs.$new)!;
+  assert.equal(current.superseded_by, undefined);
+});

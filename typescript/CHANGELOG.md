@@ -6,6 +6,33 @@ publish workflow refuses a tag whose version has no section. It speaks the
 engine's HTTP API version 1 and works with every engine release from 0.1.0
 (`connect()` and `supports()` tell what each one can do).
 
+## 0.3.0
+
+Hyperedges, and what engine 0.5 adds to existing answers. Nothing changes
+for code written for 0.2.2: new fields are optional, and engines without
+them leave them out.
+
+- `CLIENT_VERSION` is 0.3.0.
+- Hyperedges, for engines with the `hyperedges` capability:
+  `createHyperedge`, `listHyperedges`, `getHyperedge`, `patchHyperedge`,
+  `deleteHyperedge`, `invalidateHyperedge`, `retractHyperedge`,
+  `findHyperedges` (all of some nodes, or `exact`ly them) and
+  `nodeHyperedges`, with the types `HyperEdge`, `Participant`,
+  `HyperEdgeInput`, `ParticipantInput`, `HyperEdgePatch` and
+  `HyperEdgeFilter`.
+- `deleteNode(id, { hyperedges })`: `restrict` (the default, refused for a
+  node in a hyperedge), `cascade` or `detach` (`OnHyperEdges`).
+- `BatchOp` takes `create_hyperedge`, `update_hyperedge`,
+  `delete_hyperedge`, `invalidate_hyperedge` and `retract_hyperedge`, and
+  `delete_node` takes `hyperedges`; `BatchResult.hyperedge_refs` gives the
+  names given to hyperedges.
+- Optional counters: `WriteStats.hyperedges_created`, `_deleted` and
+  `_retracted`; `MergeReport.hyperedges_moved` and `hyperedges_dropped`;
+  `DumpStats.hyperedges`; `CheckReport.hyperedges`;
+  `RebuildReport.hyperedges` and `dropped_hyperedges`.
+- `ContextItem.superseded_by`: what replaces a memory now, on engines that
+  mark superseded memories in contexts.
+
 ## 0.2.2
 
 What the engine's memory and interchange routes offer, from the client.
